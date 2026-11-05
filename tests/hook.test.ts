@@ -141,7 +141,7 @@ describe('forEngine', () => {
     const input = session().map((m, i) => handled(m, `h${i}`));
     const useText = input[1]!.toolUses[0]!.text;
     input[1]!.toolUses[0] = { ...input[1]!.toolUses[0]!, result: { file: 'x' }, agentId: 'a' } as SessionMessage['toolUses'][number];
-    const out = forEngine(input);
+    const out = forEngine(input, 'drop');
     expect(out[1]).not.toHaveProperty('handle');
     expect(out[1]!.toolUses[0]).toEqual({ tool_use_id: 't1', tool: 'Read', input: { file_path: 'src/a.ts' }, text: useText });
     expect(out[5]).not.toHaveProperty('handle');
@@ -151,7 +151,7 @@ describe('forEngine', () => {
 
   it("hands your own prompts back as the engine's objects, so pasted images survive", () => {
     const prompt = handled(text('user', 'look at this screenshot'), 'p1');
-    expect(forEngine([prompt])[0]).toBe(prompt);
+    expect(forEngine([prompt], 'drop')[0]).toBe(prompt);
   });
 
   it("thinking: keep hands everything back as the engine's own, as Jev did", () => {
@@ -159,12 +159,14 @@ describe('forEngine', () => {
     const out = forEngine(input, 'keep');
     out.forEach((m, i) => expect(m).toBe(input[i]));
     expect(resolveConfig({ thinking: 'keep' }).thinking).toBe('keep');
-    expect(resolveConfig({}).thinking).toBe('drop');
+    expect(resolveConfig({}).thinking).toBe('keep');
+    expect(resolveConfig({ profile: 'smart' }).thinking).toBe('keep');
+    expect(resolveConfig({ thinking: 'drop' }).thinking).toBe('drop');
   });
 
   it('drops a message that held only thinking instead of sending it empty', () => {
     const thinking = handled(text('assistant', ''), 'th');
-    const out = forEngine([text('user', 'q'), thinking, text('assistant', 'answer')]);
+    const out = forEngine([text('user', 'q'), thinking, text('assistant', 'answer')], 'drop');
     expect(out.map((m) => m.text)).toEqual(['q', 'answer']);
   });
 });

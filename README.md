@@ -85,15 +85,13 @@ To check that it loaded, run `/nocompact` in a session.
 
 ## What it does by default
 
-The default `jev` profile makes the same choices fast-jev-compaction made,
-with one deliberate difference, explained under
-[Thinking and resumed sessions](#thinking-and-resumed-sessions):
+The default `jev` profile does exactly what fast-jev-compaction did:
 
 1. **Pins** the first message and the newest 6 messages, and never touches them.
 2. **Removes** every other tool call, together with its result. A call that
    hasn't returned yet is left alone.
 3. **Keeps** every message's own text: your prompts and Claude's answers,
-   word for word.
+   word for word, along with Claude's thinking.
 4. **Drops** messages that end up empty, such as a message that held only a
    tool call.
 5. **Checks the savings.** If the result is at least 25% smaller (by
@@ -118,17 +116,18 @@ Claude Code lets a compaction plugin hand a message back in one of two ways:
 - **As a copy.** It keeps the text and the tool calls but not thinking blocks
   or images, and a resumed session stays exactly as compacted.
 
-nocompact copies Claude's messages and tool results by default
-(`thinking: drop`). Your own prompts are always handed back as Claude Code's
-own, because that is safe for them and keeps pasted images. A kept message
-that held only thinking is dropped. If you rarely resume and want Jev's exact
-behavior, set `thinking: keep`.
+By default nocompact does what Jev did (`thinking: keep`): Claude keeps its
+earlier reasoning across compactions. If you resume sessions often and want
+them to stay compacted, set `thinking: drop`. Then Claude's messages and
+tool results are handed back as copies, and a kept message that held only
+thinking is removed. Your own prompts are always handed back as Claude
+Code's own, because that is safe for them and keeps pasted images.
 
 I tested both ways in real sessions on 2.1.318, with `claude -p --resume`:
 compacting, resuming, compacting again and resuming again. Interactive
-`claude --resume` and `/resume` load the same saved transcript. With `drop`, nothing came back and no
-message was repeated. With `keep`, the removed reads came back and kept
-answers appeared twice. Auto-compactions in the middle of a tool-using turn
+`claude --resume` and `/resume` load the same saved transcript. With `keep`,
+the removed reads came back and kept answers appeared twice. With `drop`,
+nothing came back and no message was repeated. Auto-compactions in the middle of a tool-using turn
 work with `drop` too: the API accepts the conversation without the dropped
 thinking.
 
@@ -184,7 +183,7 @@ Set them with `/plugin configure nocompact@nocompact`, or in
 | `minReductionPercent` | 0–100 | `25` | `25` | Pruning must free at least this much, or `lowReduction` applies. |
 | `preserveRecentMessages` | number | `6` | `6` | Newest messages never touched. |
 | `compactAtPercent` | 0–100 | `60` | `60` | Compact after a turn once the context is this full. `0` leaves the timing to Claude Code. |
-| `thinking` | `drop`, `keep` | `drop` | `drop` | Whether kept messages keep their thinking blocks. `keep` is Jev's way, but it breaks resumed sessions; see [above](#thinking-and-resumed-sessions). |
+| `thinking` | `keep`, `drop` | `keep` | `keep` | Whether kept messages keep their thinking blocks. `keep` is Jev's way; `drop` keeps resumed sessions compacted. See [above](#thinking-and-resumed-sessions). |
 | `notify` | `toast`, `log`, `off` | `toast` | `toast` | How each compaction is reported. |
 
 Picker settings also accept `profile`, which means "use the profile's value".
@@ -248,8 +247,9 @@ nocompact is built so a compaction never ends up worse than Claude Code's own:
 nocompact is a Claude Code function-hook plugin:
 
 - **`session.compact`** receives the transcript and returns the pruned
-  version: your prompts as Claude Code's own messages, and everything else as
-  copies (see [Thinking and resumed sessions](#thinking-and-resumed-sessions)).
+  version. Kept messages are handed back as Claude Code's own, thinking
+  included, or with `thinking: drop` as copies (see
+  [Thinking and resumed sessions](#thinking-and-resumed-sessions)).
   When it calls `next(event)`, the built-in compaction runs.
 - **`turn.complete`** checks the context usage and asks for a compaction at
   `compactAtPercent`.
@@ -284,10 +284,11 @@ folder.
   are for.
 - After any compaction, Claude Code itself re-attaches recently read files.
   This is not specific to nocompact.
-- By default, kept assistant messages lose their thinking blocks, and kept
-  tool results lose any images in them. `thinking: keep` avoids this, but it
-  breaks resumed sessions until Claude Code fixes how it saves such
-  compactions.
+- With the default `thinking: keep`, as with fast-jev-compaction, resuming a
+  compacted session in Claude Code 2.1.318 brings the pruned history back and
+  repeats kept messages. The next compaction removes the returned tool output
+  again, but the repeated messages stay. `thinking: drop` avoids this at the
+  cost of Claude's earlier thinking, and of images in kept tool results.
 
 ## License
 

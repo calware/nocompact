@@ -58,23 +58,24 @@ export function pruneFor(messages: readonly Message[], config: Config): PruneRes
 }
 
 /**
- * The messages to hand back to Claude Code. fast-jev-compaction returned the
- * engine's own objects (their handles), but Claude Code (2.1.318) writes a
+ * The messages to hand back to Claude Code.
+ *
+ * `thinking: keep` (the default) hands every message back as
+ * fast-jev-compaction did: the engine's own objects (their handles), so kept
+ * messages keep their thinking blocks. Claude Code 2.1.318, though, writes a
  * kept assistant or tool-result row with its original message id and its
- * pre-compaction links, and resuming the session then gathers the originals
- * back in: the compaction is undone and kept messages appear twice.
+ * pre-compaction links, so resuming the session gathers the originals back
+ * in: pruned history returns and kept messages appear twice.
  *
- * So assistant messages and tool results go back as fresh copies, which
- * resume cleanly. A copy carries the text and tool calls but not thinking
- * blocks or images, so a copy left with nothing (a message that held only
- * thinking) is dropped rather than sent as an empty message. Your own prompts
- * keep their handles: they resume cleanly and keep pasted images.
- *
- * Handing back assistant handles only for the untouched tail, or only after
- * copies, does not help: Claude Code writes those rows the same way. With
- * `thinking: keep`, every message goes back as Jev returned it.
+ * `thinking: drop` hands assistant messages and tool results back as fresh
+ * copies, which resume cleanly. A copy carries the text and tool calls but not
+ * thinking blocks or images, so a copy left with nothing (a message that held
+ * only thinking) is dropped rather than sent empty. Your own prompts keep
+ * their handles: they resume cleanly and keep pasted images. Keeping handles
+ * only for the untouched tail does not help: Claude Code writes those rows
+ * the same way.
  */
-export function forEngine(messages: readonly Message[], thinking: Config['thinking'] = 'drop'): SessionMessage[] {
+export function forEngine(messages: readonly Message[], thinking: Config['thinking']): SessionMessage[] {
   if (thinking === 'keep') return [...(messages as readonly SessionMessage[])];
   const out: SessionMessage[] = [];
   for (const message of messages as readonly SessionMessage[]) {

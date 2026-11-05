@@ -104,11 +104,11 @@
     "thinking": {
       "type": "string",
       "title": "Thinking in kept messages",
-      "description": "drop: kept assistant messages and tool results are handed back as copies; they lose their thinking blocks, but a resumed session stays compacted. keep: they are handed back whole, thinking included, as fast-jev-compaction did; in Claude Code 2.1.318, resuming such a session brings the pruned history back and duplicates kept messages. profile: use the profile's choice (drop).",
+      "description": "keep: kept messages are handed back whole, thinking included, as fast-jev-compaction did; in Claude Code 2.1.318, resuming such a session brings the pruned history back and repeats kept messages. drop: kept assistant messages and tool results are handed back as copies; they lose their thinking blocks, but a resumed session stays compacted. profile: use the profile's choice (keep).",
       "options": [
         "profile",
-        "drop",
-        "keep"
+        "keep",
+        "drop"
       ],
       "default": "profile"
     },

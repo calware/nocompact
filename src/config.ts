@@ -36,11 +36,11 @@ export type Config = {
   /** Context percentage at which a finished turn asks for compaction; 0 never. */
   compactAtPercent: number;
   /**
-   * `drop`: kept assistant messages and tool results go back as copies, which
-   * survive a resume but lose their thinking blocks. `keep`: they go back as
-   * Claude Code's own (Jev's way), thinking included, but resuming the session
-   * brings pruned history back and duplicates kept messages (Claude Code
-   * 2.1.318).
+   * `keep` (Jev's way, the default): kept messages go back as Claude Code's
+   * own, thinking included, but resuming the session brings pruned history
+   * back and duplicates kept messages (Claude Code 2.1.318). `drop`: kept
+   * assistant messages and tool results go back as copies, which survive a
+   * resume but lose their thinking blocks.
    */
   thinking: Thinking;
   notify: Notify;
@@ -51,9 +51,8 @@ type ProfileValues = Omit<Config, 'profile' | 'rules' | 'ruleErrors'>;
 /**
  * `jev` reproduces fast-jev-compaction with Jev's answers as measured over
  * ~230,000 of its decisions: every unpinned tool call goes, text stays, and
- * a compaction that frees under 25% falls back to the built-in summary. One
- * deliberate difference: `thinking` is `drop`, so a resumed session stays
- * compacted; `keep` is Jev's exact way.
+ * a compaction that frees under 25% falls back to the built-in summary, and
+ * kept messages go back whole, thinking included.
  */
 export const PROFILES: Record<Profile, ProfileValues> = {
   jev: {
@@ -68,7 +67,7 @@ export const PROFILES: Record<Profile, ProfileValues> = {
     minReductionRatio: 0.25,
     preserveRecentMessages: 6,
     compactAtPercent: 60,
-    thinking: 'drop',
+    thinking: 'keep',
     notify: 'toast',
   },
   smart: {
@@ -83,7 +82,7 @@ export const PROFILES: Record<Profile, ProfileValues> = {
     minReductionRatio: 0.25,
     preserveRecentMessages: 6,
     compactAtPercent: 60,
-    thinking: 'drop',
+    thinking: 'keep',
     notify: 'toast',
   },
 };
