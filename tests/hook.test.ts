@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionCompactInput, SessionCompactResult, SessionMessage } from 'claude-code';
 
-import { compactEvent, hybridInstructions, previewText, register, type Outcome } from '../hooks/nocompact.js';
+import { compactEvent, forEngine, hybridInstructions, previewText, register, type Outcome } from '../hooks/nocompact.js';
 import { resolveConfig } from '../src/config.js';
 import { big, session, text, type Msg } from './helpers.js';
 
@@ -40,7 +40,7 @@ describe('compactEvent', () => {
     const out = await compactEvent(resolveConfig({}), event(input), h.next, h.say);
     expect(h.seen).toHaveLength(0);
     expect(out.messages).toHaveLength(8);
-    expect(out.messages![0]).toBe(input[0]);
+    expect(out.messages![0]).toEqual(input[0]);
     expect(h.said).toEqual([['pruned', expect.stringMatching(/^kept 8\/14 messages, no summary \(9\d% reduction; 3 calls removed, 1 pinned\)$/)]]);
   });
 
@@ -89,7 +89,7 @@ describe('compactEvent', () => {
     expect(sent.messages).toEqual(input.slice(0, sent.messages.length));
     const kept = out.messages!.slice(SUMMARY.length);
     expect(out.messages!.slice(0, SUMMARY.length)).toEqual(SUMMARY);
-    expect(kept[kept.length - 1]).toBe(input[input.length - 1]);
+    expect(kept[kept.length - 1]!.text).toBe(input[input.length - 1]!.text);
     expect(h.said[0]![0]).toBe('hybrid');
   });
 
@@ -131,6 +131,41 @@ describe('compactEvent', () => {
     const h = harness();
     const out = await compactEvent(resolveConfig({}), event(session() as SessionMessage[], { agentId: 'a1' }), h.next, h.say);
     expect(out.messages).toHaveLength(8);
+  });
+});
+
+describe('forEngine', () => {
+  const handled = (m: Msg, handle: string) => ({ ...m, handle }) as SessionMessage;
+
+  it('copies assistant messages and tool results without handles, so a resumed session stays compacted', () => {
+    const input = session().map((m, i) => handled(m, `h${i}`));
+    const useText = input[1]!.toolUses[0]!.text;
+    input[1]!.toolUses[0] = { ...input[1]!.toolUses[0]!, result: { file: 'x' }, agentId: 'a' } as SessionMessage['toolUses'][number];
+    const out = forEngine(input);
+    expect(out[1]).not.toHaveProperty('handle');
+    expect(out[1]!.toolUses[0]).toEqual({ tool_use_id: 't1', tool: 'Read', input: { file_path: 'src/a.ts' }, text: useText });
+    expect(out[5]).not.toHaveProperty('handle');
+    expect(out[5]!.toolResults).toEqual([{ tool_use_id: 't2', text: input[5]!.toolResults![0]!.text, isError: true }]);
+    expect(out.map((m) => m.text)).toEqual(input.map((m) => m.text));
+  });
+
+  it("hands your own prompts back as the engine's objects, so pasted images survive", () => {
+    const prompt = handled(text('user', 'look at this screenshot'), 'p1');
+    expect(forEngine([prompt])[0]).toBe(prompt);
+  });
+
+  it("thinking: keep hands everything back as the engine's own, as Jev did", () => {
+    const input = session().map((m, i) => handled(m, `h${i}`));
+    const out = forEngine(input, 'keep');
+    out.forEach((m, i) => expect(m).toBe(input[i]));
+    expect(resolveConfig({ thinking: 'keep' }).thinking).toBe('keep');
+    expect(resolveConfig({}).thinking).toBe('drop');
+  });
+
+  it('drops a message that held only thinking instead of sending it empty', () => {
+    const thinking = handled(text('assistant', ''), 'th');
+    const out = forEngine([text('user', 'q'), thinking, text('assistant', 'answer')]);
+    expect(out.map((m) => m.text)).toEqual(['q', 'answer']);
   });
 });
 

@@ -3,6 +3,8 @@ import type { DropStyle, LowReduction, OldText } from './types.js';
 
 export type Profile = 'jev' | 'smart';
 export type Notify = 'toast' | 'log' | 'off';
+/** What kept messages carry back; see `forEngine` in hooks/nocompact.ts. */
+export type Thinking = 'drop' | 'keep';
 
 /** Everything that shapes a compaction, after profile and options are merged. */
 export type Config = {
@@ -33,6 +35,14 @@ export type Config = {
   preserveRecentMessages: number;
   /** Context percentage at which a finished turn asks for compaction; 0 never. */
   compactAtPercent: number;
+  /**
+   * `drop`: kept assistant messages and tool results go back as copies, which
+   * survive a resume but lose their thinking blocks. `keep`: they go back as
+   * Claude Code's own (Jev's way), thinking included, but resuming the session
+   * brings pruned history back and duplicates kept messages (Claude Code
+   * 2.1.318).
+   */
+  thinking: Thinking;
   notify: Notify;
 };
 
@@ -40,8 +50,10 @@ type ProfileValues = Omit<Config, 'profile' | 'rules' | 'ruleErrors'>;
 
 /**
  * `jev` reproduces fast-jev-compaction with Jev's answers as measured over
- * ~150,000 of its decisions: every unpinned tool call goes, text stays, and
- * a compaction that frees under 25% falls back to the built-in summary.
+ * ~230,000 of its decisions: every unpinned tool call goes, text stays, and
+ * a compaction that frees under 25% falls back to the built-in summary. One
+ * deliberate difference: `thinking` is `drop`, so a resumed session stays
+ * compacted; `keep` is Jev's exact way.
  */
 export const PROFILES: Record<Profile, ProfileValues> = {
   jev: {
@@ -56,6 +68,7 @@ export const PROFILES: Record<Profile, ProfileValues> = {
     minReductionRatio: 0.25,
     preserveRecentMessages: 6,
     compactAtPercent: 60,
+    thinking: 'drop',
     notify: 'toast',
   },
   smart: {
@@ -70,6 +83,7 @@ export const PROFILES: Record<Profile, ProfileValues> = {
     minReductionRatio: 0.25,
     preserveRecentMessages: 6,
     compactAtPercent: 60,
+    thinking: 'drop',
     notify: 'toast',
   },
 };
@@ -117,6 +131,7 @@ export function resolveConfig(options: Options = {}): Config {
     minReductionRatio: ratio === undefined ? base.minReductionRatio : ratio / 100,
     preserveRecentMessages: Math.floor(num(options, 'preserveRecentMessages', 0, 1000) ?? base.preserveRecentMessages),
     compactAtPercent: num(options, 'compactAtPercent', 0, 100) ?? base.compactAtPercent,
+    thinking: pick(options, 'thinking', ['drop', 'keep'] as const) ?? base.thinking,
     notify: pick(options, 'notify', ['toast', 'log', 'off'] as const) ?? base.notify,
   };
 }
@@ -134,6 +149,7 @@ export function describeConfig(config: Config): string[] {
     `minReduction       ${Math.round(config.minReductionRatio * 100)}%`,
     `preserveRecent     ${config.preserveRecentMessages} messages`,
     `compactAtPercent   ${config.compactAtPercent === 0 ? 'off' : `${config.compactAtPercent}%`}`,
+    `thinking           ${config.thinking === 'keep' ? 'keep (a resumed session undoes compactions)' : 'drop (resume-safe)'}`,
     `notify             ${config.notify}`,
   ];
   for (const error of config.ruleErrors) lines.push(`ignored rule       ${error}`);

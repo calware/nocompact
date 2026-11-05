@@ -2,22 +2,39 @@
   "name": "nocompact",
   "version": "1.0.0",
   "description": "Instant, model-free context compaction for Claude Code: prunes old tool calls verbatim instead of summarizing, falls back to the built-in summary when that is not enough.",
-  "author": { "name": "calware", "url": "https://github.com/calware" },
+  "author": {
+    "name": "calware",
+    "url": "https://github.com/calware"
+  },
   "license": "MIT",
-  "keywords": ["compaction", "context", "compact", "jev", "tokens"],
+  "keywords": [
+    "compaction",
+    "context",
+    "compact",
+    "jev",
+    "tokens"
+  ],
   "userConfig": {
     "profile": {
       "type": "string",
       "title": "Profile",
       "description": "jev: exactly what fast-jev-compaction did (every old tool call removed, text kept, built-in summary below the minimum reduction). smart: notes for removed calls, keeps questions and plans, truncates web and MCP output instead of removing it, and summarizes only the oldest part when pruning is not enough. Every setting below overrides the profile.",
-      "options": ["jev", "smart"],
+      "options": [
+        "jev",
+        "smart"
+      ],
       "default": "jev"
     },
     "droppedCalls": {
       "type": "string",
       "title": "Removed tool calls",
       "description": "What happens to an old tool call no rule keeps. remove: call and output vanish (Jev). note: they vanish, leaving a one-line note naming the call. head: the call stays with its output cut to the first headChars characters. profile: use the profile's choice.",
-      "options": ["profile", "remove", "note", "head"],
+      "options": [
+        "profile",
+        "remove",
+        "note",
+        "head"
+      ],
       "default": "profile"
     },
     "toolRules": {
@@ -39,7 +56,12 @@
       "type": "string",
       "title": "Old message text",
       "description": "keep: never touch text (Jev). abridge: shorten old assistant texts longer than abridgeAbove to their start and end on every compaction. abridge-all: the same for old user texts too. profile: use the profile's choice.",
-      "options": ["profile", "keep", "abridge", "abridge-all"],
+      "options": [
+        "profile",
+        "keep",
+        "abridge",
+        "abridge-all"
+      ],
       "default": "profile"
     },
     "abridgeAbove": {
@@ -51,7 +73,12 @@
       "type": "string",
       "title": "When pruning frees too little",
       "description": "summary: Claude Code's built-in summary of the whole conversation (Jev). abridge: first abridge long old assistant texts, oldest first; still too little, the built-in summary. hybrid: the built-in summarizer condenses only the oldest part and the newer part stays verbatim. profile: use the profile's choice. Errors always fall back to the built-in summary.",
-      "options": ["profile", "summary", "abridge", "hybrid"],
+      "options": [
+        "profile",
+        "summary",
+        "abridge",
+        "hybrid"
+      ],
       "default": "profile"
     },
     "hybridKeepPercent": {
@@ -74,11 +101,27 @@
       "title": "Compact at context %",
       "description": "After a turn, compact once the context window is this full; 0 leaves it to Claude Code's own auto-compact. Unset: 60 (Jev's)."
     },
+    "thinking": {
+      "type": "string",
+      "title": "Thinking in kept messages",
+      "description": "drop: kept assistant messages and tool results are handed back as copies; they lose their thinking blocks, but a resumed session stays compacted. keep: they are handed back whole, thinking included, as fast-jev-compaction did; in Claude Code 2.1.318, resuming such a session brings the pruned history back and duplicates kept messages. profile: use the profile's choice (drop).",
+      "options": [
+        "profile",
+        "drop",
+        "keep"
+      ],
+      "default": "profile"
+    },
     "notify": {
       "type": "string",
       "title": "Notifications",
       "description": "toast: a transcript line and a toast per compaction. log: the line only. off: silent. profile: use the profile's choice.",
-      "options": ["profile", "toast", "log", "off"],
+      "options": [
+        "profile",
+        "toast",
+        "log",
+        "off"
+      ],
       "default": "profile"
     }
   }

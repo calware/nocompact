@@ -57,6 +57,54 @@ export function pruneFor(messages: readonly Message[], config: Config): PruneRes
   );
 }
 
+/**
+ * The messages to hand back to Claude Code. fast-jev-compaction returned the
+ * engine's own objects (their handles), but Claude Code (2.1.318) writes a
+ * kept assistant or tool-result row with its original message id and its
+ * pre-compaction links, and resuming the session then gathers the originals
+ * back in: the compaction is undone and kept messages appear twice.
+ *
+ * So assistant messages and tool results go back as fresh copies, which
+ * resume cleanly. A copy carries the text and tool calls but not thinking
+ * blocks or images, so a copy left with nothing (a message that held only
+ * thinking) is dropped rather than sent as an empty message. Your own prompts
+ * keep their handles: they resume cleanly and keep pasted images.
+ *
+ * Handing back assistant handles only for the untouched tail, or only after
+ * copies, does not help: Claude Code writes those rows the same way. With
+ * `thinking: keep`, every message goes back as Jev returned it.
+ */
+export function forEngine(messages: readonly Message[], thinking: Config['thinking'] = 'drop'): SessionMessage[] {
+  if (thinking === 'keep') return [...(messages as readonly SessionMessage[])];
+  const out: SessionMessage[] = [];
+  for (const message of messages as readonly SessionMessage[]) {
+    if (message.handle !== undefined && message.role === 'user' && !message.toolResults?.length) {
+      out.push(message);
+      continue;
+    }
+    if (!message.text && message.toolUses.length === 0 && !message.toolResults?.length) continue;
+    const copy: SessionMessage = {
+      role: message.role,
+      text: message.text,
+      toolUses: message.toolUses.map((tool) => {
+        const use: SessionMessage['toolUses'][number] = { tool_use_id: tool.tool_use_id, tool: tool.tool, input: tool.input };
+        if (tool.text !== undefined) use.text = tool.text;
+        if (tool.isError) use.isError = true;
+        return use;
+      }),
+    };
+    if (message.toolResults?.length) {
+      copy.toolResults = message.toolResults.map((result) => ({
+        tool_use_id: result.tool_use_id,
+        text: result.text,
+        isError: result.isError ?? false,
+      }));
+    }
+    out.push(copy);
+  }
+  return out;
+}
+
 export function hybridInstructions(instructions: string | undefined): string {
   const note =
     'Only the earlier part of the conversation is being summarized here. The most recent part follows this summary verbatim, so focus on what that later part will need from the earlier one.';
@@ -86,12 +134,12 @@ export async function compactEvent(
     const total = event.messages.length;
     if (ratio >= config.minReductionRatio && result.stats.charsAfter < result.stats.charsBefore) {
       say('pruned', `kept ${result.messages.length}/${total} messages, no summary (${summarize(result.stats)})`);
-      return { messages: result.messages as SessionMessage[] };
+      return { messages: forEngine(result.messages, config.thinking) };
     }
     if (config.lowReduction === 'hybrid') {
       const split = hybridSplit(event.messages, result, config);
       if (split !== undefined) {
-        const tail = result.messages.filter((_, k) => result.origins[k]! >= split) as SessionMessage[];
+        const tail = forEngine(result.messages.filter((_, k) => result.origins[k]! >= split), config.thinking);
         handedOff = true;
         let summary: SessionCompactResult;
         try {
@@ -106,7 +154,7 @@ export async function compactEvent(
           if (result.stats.charsAfter >= result.stats.charsBefore) throw error;
           const why = error instanceof Error ? error.message : String(error);
           say('pruned', `summarizer failed (${why}); kept the pruned conversation (${summarize(result.stats)})`);
-          return { messages: result.messages as SessionMessage[] };
+          return { messages: forEngine(result.messages, config.thinking) };
         }
         if (summary.skip !== undefined) return summary;
         say(
