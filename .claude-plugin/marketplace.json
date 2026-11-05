@@ -1,0 +1,19 @@
+{
+  "name": "nocompact",
+  "owner": {
+    "name": "calware",
+    "url": "https://github.com/calware"
+  },
+  "metadata": {
+    "description": "nocompact: instant, model-free context compaction for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "nocompact",
+      "source": "./",
+      "description": "Instant, model-free context compaction for Claude Code: prunes old tool calls verbatim instead of summarizing, falls back to the built-in summary when that is not enough.",
+      "version": "1.0.0",
+      "license": "MIT"
+    }
+  ]
+}

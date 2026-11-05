@@ -1,0 +1,85 @@
+{
+  "name": "nocompact",
+  "version": "1.0.0",
+  "description": "Instant, model-free context compaction for Claude Code: prunes old tool calls verbatim instead of summarizing, falls back to the built-in summary when that is not enough.",
+  "author": { "name": "calware", "url": "https://github.com/calware" },
+  "license": "MIT",
+  "keywords": ["compaction", "context", "compact", "jev", "tokens"],
+  "userConfig": {
+    "profile": {
+      "type": "string",
+      "title": "Profile",
+      "description": "jev: exactly what fast-jev-compaction did (every old tool call removed, text kept, built-in summary below the minimum reduction). smart: notes for removed calls, keeps questions and plans, truncates web and MCP output instead of removing it, and summarizes only the oldest part when pruning is not enough. Every setting below overrides the profile.",
+      "options": ["jev", "smart"],
+      "default": "jev"
+    },
+    "droppedCalls": {
+      "type": "string",
+      "title": "Removed tool calls",
+      "description": "What happens to an old tool call no rule keeps. remove: call and output vanish (Jev). note: they vanish, leaving a one-line note naming the call. head: the call stays with its output cut to the first headChars characters. profile: use the profile's choice.",
+      "options": ["profile", "remove", "note", "head"],
+      "default": "profile"
+    },
+    "toolRules": {
+      "type": "string",
+      "title": "Tool rules",
+      "description": "Per-tool overrides, first match wins, ahead of the profile's own: Tool=keep|remove|note|head, or Tool(subject)=action where subject matches the file path, command, URL or query. * and ? are wildcards. Example: AskUserQuestion=keep, Read(*.md)=keep, mcp__*mail*=head, Bash(git *)=note"
+    },
+    "keepRecentCalls": {
+      "type": "number",
+      "title": "Recent tool calls to keep",
+      "description": "Keep this many of the newest old tool calls whole, beyond the preserved recent messages. Unset: the profile's (0)."
+    },
+    "headChars": {
+      "type": "number",
+      "title": "Truncated output length",
+      "description": "Characters of output a head-truncated tool call keeps. Unset: the profile's (jev 300, smart 500)."
+    },
+    "oldText": {
+      "type": "string",
+      "title": "Old message text",
+      "description": "keep: never touch text (Jev). abridge: shorten old assistant texts longer than abridgeAbove to their start and end on every compaction. abridge-all: the same for old user texts too. profile: use the profile's choice.",
+      "options": ["profile", "keep", "abridge", "abridge-all"],
+      "default": "profile"
+    },
+    "abridgeAbove": {
+      "type": "number",
+      "title": "Abridge texts above",
+      "description": "Characters above which an old text counts as long when abridging. Unset: 2000."
+    },
+    "lowReduction": {
+      "type": "string",
+      "title": "When pruning frees too little",
+      "description": "summary: Claude Code's built-in summary of the whole conversation (Jev). abridge: first abridge long old assistant texts, oldest first; still too little, the built-in summary. hybrid: the built-in summarizer condenses only the oldest part and the newer part stays verbatim. profile: use the profile's choice. Errors always fall back to the built-in summary.",
+      "options": ["profile", "summary", "abridge", "hybrid"],
+      "default": "profile"
+    },
+    "hybridKeepPercent": {
+      "type": "number",
+      "title": "Hybrid verbatim share",
+      "description": "For hybrid: the most the verbatim recent part may take, as a percentage of the conversation's original size. Unset: 40."
+    },
+    "minReductionPercent": {
+      "type": "number",
+      "title": "Minimum reduction (%)",
+      "description": "Pruning must remove at least this percentage of the conversation's characters, or the low-reduction plan runs. Unset: 25 (Jev's)."
+    },
+    "preserveRecentMessages": {
+      "type": "number",
+      "title": "Recent messages to preserve",
+      "description": "The newest messages are never touched (nor is the first). Unset: 6 (Jev's)."
+    },
+    "compactAtPercent": {
+      "type": "number",
+      "title": "Compact at context %",
+      "description": "After a turn, compact once the context window is this full; 0 leaves it to Claude Code's own auto-compact. Unset: 60 (Jev's)."
+    },
+    "notify": {
+      "type": "string",
+      "title": "Notifications",
+      "description": "toast: a transcript line and a toast per compaction. log: the line only. off: silent. profile: use the profile's choice.",
+      "options": ["profile", "toast", "log", "off"],
+      "default": "profile"
+    }
+  }
+}
