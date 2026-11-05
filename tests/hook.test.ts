@@ -219,14 +219,14 @@ describe('register', () => {
     expect(preview.text).toMatch(/would prune, no summary/);
   });
 
-  it('stays quiet when notify is off and only logs precompute', async () => {
+  it('stays quiet when notify is off, and toasts every trigger as Jev did', async () => {
     const quiet = hooks({ notify: 'off' });
     const logs: string[] = [];
     const $ = { ui: { log: (l: string) => logs.push(l), toast: () => logs.push('toast') } };
     await quiet.get('session.compact')!($, event(session() as SessionMessage[]), async () => ({ messages: SUMMARY }));
     expect(logs).toEqual([]);
     await hooks().get('session.compact')!($, event(session() as SessionMessage[], { trigger: 'precompute' }), async () => ({ messages: SUMMARY }));
-    expect(logs).toHaveLength(1);
+    expect(logs).toEqual([expect.stringMatching(/^nocompact: kept/), 'toast']);
   });
 
   it('asks for compaction past compactAtPercent, and not when it is 0', async () => {

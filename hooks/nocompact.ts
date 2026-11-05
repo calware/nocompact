@@ -234,7 +234,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
       reports.length = Math.min(reports.length, HISTORY);
       if (config.notify === 'off') return;
       $.ui.log(`nocompact: ${text}`);
-      if (config.notify === 'toast' && event.trigger !== 'precompute') {
+      if (config.notify === 'toast') {
         $.ui.toast(`nocompact: ${text}`, { timeoutMs: 15_000 });
       }
     };
