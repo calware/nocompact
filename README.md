@@ -71,6 +71,23 @@ compaction:
 claude plugin disable fast-jev-compaction@fast-jev-compaction
 ```
 
+### Updating
+
+Claude Code doesn't refresh third-party marketplaces on its own unless you turn
+that on. To get a new version now, from a shell:
+
+```sh
+claude plugin marketplace update nocompact
+claude plugin update nocompact@nocompact
+```
+
+Then restart Claude Code, or run `/reload-plugins` in each open session. To
+update automatically at startup instead, run `/plugin`, open the **nocompact**
+marketplace and choose **Enable auto-update**.
+
+A local clone updates with `git pull`, then `/reload-plugins`. See
+[CHANGELOG.md](CHANGELOG.md) for what changed.
+
 ### Requirements
 
 nocompact uses Claude Code's function-hook plugin API, which is in early
