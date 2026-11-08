@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- Background precomputes are declined quietly when pruning will do the job, so a notice only appears when a compaction actually happens. One that would fall back still lets Claude Code prepare its summary in the background.
+- Notices no longer repeat the plugin name (Claude Code already shows it).
+- Reductions round down, so a result just under the minimum no longer reads as the minimum.
+
 ## 1.0.0
 
 - Model-free compaction for Claude Code: removes old tool calls and their output, keeps all text verbatim.

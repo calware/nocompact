@@ -32,8 +32,9 @@ export type Report = {
 
 const HISTORY = 5;
 
+/** Rounds down, so a reduction just short of the minimum never reads as the minimum. */
 function percent(ratio: number): string {
-  return `${Math.round(ratio * 100)}%`;
+  return `${Math.floor(ratio * 100 + 1e-9)}%`;
 }
 
 export function summarize(stats: PruneStats): string {
@@ -112,10 +113,20 @@ export function hybridInstructions(instructions: string | undefined): string {
   return instructions ? `${instructions}\n\n${note}` : note;
 }
 
+/** Why a background precompute is declined; Claude Code shows no notice for it. */
+export const PRECOMPUTE_SKIP = 'nocompact prunes when the compaction happens';
+
 /**
  * Compacts one transcript. Returns the engine's own compaction (via `next`)
  * whenever pruning cannot do the job: on any error, and when it frees less
  * than `minReductionRatio` and no plan B helps.
+ *
+ * A `precompute` installs nothing; Claude Code keeps its result for the real
+ * compaction later. Pruning takes milliseconds, so it has nothing to get ahead
+ * of: a precompute that would prune is declined, and the real compaction
+ * prunes the conversation as it is then. One that would fall back lets Claude
+ * Code precompute its summary in the background, ready for that fallback.
+ * Neither says anything, because nothing has been compacted yet.
  */
 export async function compactEvent(
   config: Config,
@@ -123,10 +134,11 @@ export async function compactEvent(
   next: (event: SessionCompactInput) => Promise<SessionCompactResult>,
   say: (outcome: Outcome, text: string) => void,
 ): Promise<SessionCompactResult> {
+  const precompute = event.trigger === 'precompute';
   let handedOff = false;
   const builtIn = async (outcome: Outcome, why: string): Promise<SessionCompactResult> => {
     handedOff = true;
-    say(outcome, `fallback to built-in summary (${why})`);
+    if (!precompute) say(outcome, `fallback to built-in summary (${why})`);
     return next(event);
   };
   try {
@@ -134,12 +146,14 @@ export async function compactEvent(
     const ratio = reductionRatio(result.stats);
     const total = event.messages.length;
     if (ratio >= config.minReductionRatio && result.stats.charsAfter < result.stats.charsBefore) {
+      if (precompute) return { skip: PRECOMPUTE_SKIP };
       say('pruned', `kept ${result.messages.length}/${total} messages, no summary (${summarize(result.stats)})`);
       return { messages: forEngine(result.messages, config.thinking) };
     }
     if (config.lowReduction === 'hybrid') {
       const split = hybridSplit(event.messages, result, config);
       if (split !== undefined) {
+        if (precompute) return { skip: PRECOMPUTE_SKIP };
         const tail = forEngine(result.messages.filter((_, k) => result.origins[k]! >= split), config.thinking);
         handedOff = true;
         let summary: SessionCompactResult;
@@ -221,7 +235,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
       argumentHint: '[preview|help]',
     });
     if (config.ruleErrors.length > 0) {
-      $.ui.log(`nocompact: ignored toolRules ${config.ruleErrors.join('; ')}`);
+      $.ui.log(`ignored toolRules ${config.ruleErrors.join('; ')}`);
     }
     return next(event);
   });
@@ -233,16 +247,17 @@ export const register: Register = (on: On, options: PluginOptions) => {
       reports.unshift(report);
       reports.length = Math.min(reports.length, HISTORY);
       if (config.notify === 'off') return;
-      $.ui.log(`nocompact: ${text}`);
+      // Claude Code already labels both with the plugin's name.
+      $.ui.log(text);
       if (config.notify === 'toast') {
-        $.ui.toast(`nocompact: ${text}`, { timeoutMs: 15_000 });
+        $.ui.toast(text, { timeoutMs: 15_000 });
       }
     };
     return compactEvent(config, event, next, say);
   }).catch(($, event, next) => {
     // Whatever went wrong, Claude Code's own compaction still runs (or, where
     // the hook had already handed off to it, its answer is replayed).
-    $.ui.log('nocompact: hook failed; using the built-in compaction');
+    $.ui.log('hook failed; using the built-in compaction');
     return next(event);
   });
 
@@ -254,7 +269,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
       compacting = true;
       await $.session.compact();
     } catch (error) {
-      $.ui.log(`nocompact: auto-compact skipped (${error instanceof Error ? error.message : String(error)})`);
+      $.ui.log(`auto-compact skipped (${error instanceof Error ? error.message : String(error)})`);
     } finally {
       compacting = false;
     }
@@ -269,7 +284,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
       ? reports.map((r) => `  ${r.at.slice(11, 19)} ${r.trigger}${r.agentId ? ` (subagent)` : ''}: ${r.text}`)
       : ['  none since the plugin loaded'];
     return {
-      text: ['nocompact settings', ...describeConfig(config).map((line) => `  ${line}`), 'Recent compactions', ...recent, '', HELP].join('\n'),
+      text: ['settings', ...describeConfig(config).map((line) => `  ${line}`), 'Recent compactions', ...recent, '', HELP].join('\n'),
     };
   });
 };

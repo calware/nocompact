@@ -1,6 +1,6 @@
 {
   "name": "nocompact",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Instant, model-free context compaction plugin for Claude Code.",
   "type": "module",

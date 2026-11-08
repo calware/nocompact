@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionCompactInput, SessionCompactResult, SessionMessage } from 'claude-code';
 
-import { compactEvent, forEngine, hybridInstructions, previewText, register, type Outcome } from '../hooks/nocompact.js';
+import { compactEvent, forEngine, hybridInstructions, PRECOMPUTE_SKIP, previewText, register, summarize, type Outcome } from '../hooks/nocompact.js';
 import { resolveConfig } from '../src/config.js';
 import { big, session, text, type Msg } from './helpers.js';
 
@@ -33,7 +33,48 @@ function textHeavy(): SessionMessage[] {
   return [...messages, ...session().slice(8)] as SessionMessage[];
 }
 
+describe('summarize', () => {
+  const stats = (charsAfter: number) => ({
+    messagesBefore: 10, messagesAfter: 8, charsBefore: 10000, charsAfter,
+    calls: 1, pinned: 0, kept: 0, removed: 1, noted: 0, headed: 0, abridged: 0,
+  });
+  it('never rounds a reduction up to the minimum', () => {
+    expect(summarize(stats(7504))).toMatch(/^24% reduction/);
+    expect(summarize(stats(7100))).toMatch(/^29% reduction/);
+    expect(summarize(stats(7500))).toMatch(/^25% reduction/);
+  });
+});
+
 describe('compactEvent', () => {
+  it('declines a precompute it would prune, without a word', async () => {
+    const h = harness();
+    const out = await compactEvent(resolveConfig({}), event(session() as SessionMessage[], { trigger: 'precompute' }), h.next, h.say);
+    expect(out).toEqual({ skip: PRECOMPUTE_SKIP });
+    expect(h.seen).toHaveLength(0);
+    expect(h.said).toHaveLength(0);
+  });
+
+  it('lets a precompute that would fall back precompute the built-in summary, quietly', async () => {
+    const h = harness();
+    const input = event(textHeavy(), { trigger: 'precompute' });
+    const out = await compactEvent(resolveConfig({}), input, h.next, h.say);
+    expect(out).toEqual({ messages: SUMMARY });
+    expect(h.seen).toEqual([input]);
+    expect(h.said).toHaveLength(0);
+  });
+
+  it('declines a precompute it would answer with hybrid', async () => {
+    const h = harness();
+    const out = await compactEvent(
+      resolveConfig({ lowReduction: 'hybrid', hybridKeepPercent: 40 }),
+      event(textHeavy(), { trigger: 'precompute' }),
+      h.next,
+      h.say,
+    );
+    expect(out).toEqual({ skip: PRECOMPUTE_SKIP });
+    expect(h.seen).toHaveLength(0);
+  });
+
   it('jev: answers with the pruned conversation and never calls the summarizer', async () => {
     const h = harness();
     const input = session() as SessionMessage[];
@@ -210,7 +251,8 @@ describe('register', () => {
       session: { messages: async () => session() },
     };
     await map.get('session.compact')!($, event(session() as SessionMessage[], { trigger: 'manual' }), async () => ({ messages: SUMMARY }));
-    expect(logs[0]).toMatch(/^nocompact: kept 8\/14 messages/);
+    expect(logs[0]).toMatch(/^kept 8\/14 messages/);
+    expect(toasts[0]).toBe(logs[0]);
     expect(toasts).toHaveLength(1);
     const status = (await map.get('command.run')!($, { command: 'nocompact', args: '' })) as { text: string };
     expect(status.text).toContain('profile            jev');
@@ -219,14 +261,18 @@ describe('register', () => {
     expect(preview.text).toMatch(/would prune, no summary/);
   });
 
-  it('stays quiet when notify is off, and toasts every trigger as Jev did', async () => {
+  it('stays quiet when notify is off, and on a background precompute', async () => {
     const quiet = hooks({ notify: 'off' });
     const logs: string[] = [];
     const $ = { ui: { log: (l: string) => logs.push(l), toast: () => logs.push('toast') } };
     await quiet.get('session.compact')!($, event(session() as SessionMessage[]), async () => ({ messages: SUMMARY }));
     expect(logs).toEqual([]);
-    await hooks().get('session.compact')!($, event(session() as SessionMessage[], { trigger: 'precompute' }), async () => ({ messages: SUMMARY }));
-    expect(logs).toEqual([expect.stringMatching(/^nocompact: kept/), 'toast']);
+    const map = hooks();
+    const out = await map.get('session.compact')!($, event(session() as SessionMessage[], { trigger: 'precompute' }), async () => ({ messages: SUMMARY }));
+    expect(out).toEqual({ skip: PRECOMPUTE_SKIP });
+    expect(logs).toEqual([]);
+    const status = (await map.get('command.run')!($, { command: 'nocompact', args: '' })) as { text: string };
+    expect(status.text).toContain('none since the plugin loaded');
   });
 
   it('asks for compaction past compactAtPercent, and not when it is 0', async () => {

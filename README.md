@@ -101,8 +101,16 @@ The default `jev` profile does exactly what fast-jev-compaction did:
 7. **Compacts early.** After any turn that leaves the context window 60% full,
    it compacts on its own, so the slow built-in auto-compact rarely fires.
 
-It handles every kind of compaction the same way: `/compact`, auto-compact,
-background precompute and subagent transcripts.
+It handles `/compact`, auto-compact and subagent transcripts the same way.
+
+**Background precompute.** With a compaction window of 200K tokens or more,
+Claude Code prepares a compaction in the background shortly before the
+threshold and installs nothing until the real compaction. Pruning takes
+milliseconds, so nocompact declines these quietly and prunes at the real
+compaction instead, and its notice only appears when a compaction actually
+happens. When pruning would fall short, it lets Claude Code prepare its summary
+in the background as usual. (fast-jev-compaction answered every precompute and
+showed a notice for it, though nothing had been compacted yet.)
 
 ## Thinking and resumed sessions
 
